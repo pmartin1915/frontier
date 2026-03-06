@@ -1,0 +1,266 @@
+﻿Systemic Calibration and Balance Analysis for the Frontier Survival Simulator
+Executive Overview: The Divergence of Strategic Optimality and Entropy
+Date: February 18, 2026 Subject: Comprehensive Tuning Recommendations for Frontier Simulator Reference Material: Handoff Document 1, Comparative Genre Analysis 2
+The current state of the Frontier headless simulator presents a critical dissonance between its design intent—a strategic survival journey—and its mathematical reality. The most alarming metric provided in the handoff report 1 is not merely the survival rate, but the behavioral incentivization structure. Specifically, the "Conservative" strategy outperforms the "Optimal" strategy (66% vs. 52% survival), and the "Action Entropy" sits at a dangerously low ~1.0. These metrics indicate a systemic failure where the game penalizes player agency. In a functional survival system, active optimization must yield superior results to risk-averse stagnation. Currently, Frontier functions as a "poverty trap" where any deviation from a minimal viable loop (Hunt/Rest) exposes the player to fatal variance without offering commensurate rewards.
+This report provides a rigorous, data-driven restructuring of the game’s core mathematical pillars. It moves beyond high-level design theory to offer concrete numerical implementations derived from a cross-analysis of genre leaders, including the 1985 and 2021 iterations of The Oregon Trail, The Banner Saga, Don’t Starve, and The Long Dark. Furthermore, it applies advanced probabilistic models, specifically the Pseudo-Random Distribution (PRD) utilized in competitive gaming environments like Dota 2, to solve the specific "death spiral" and "event saturation" issues identified in the simulator.
+The analysis is divided into four primary modules: The Probability Engine, The Biological Economy, Mechanical Attrition, and Spatiotemporal Pacing. Each section deconstructs the existing flaws identified in the handoff and reconstructs them using validated mathematical models.
+________________
+Module 1: The Probability Engine
+Analysis of Encounter Frequency and The "Calm Ramp"
+The first critical area of instability lies in the Encounter Gate. The simulator reports an actual encounter frequency of 0.36–0.39 in later acts, significantly overshooting the target range of 0.15–0.35.1 This oversaturation creates "noise" that drowns out meaningful decision-making. When players are bombarded by crisis events daily, they are forced into a reactive shell, preventing long-term strategic planning. The current system’s reliance on a high base probability compounded by an aggressive additive ramp creates a "Doom Timer" rather than a dynamic story manager.
+1.1 Tuning Question 1: Encounter Gate Base Adjustment
+Current State: ENCOUNTER_GATE_BASE is set to 0.20, with Act Scaling multipliers ranging from 0.8 to 1.4.1 Problem Diagnosis: The base probability of 20% is mathematically deceptive and creates a runaway probability cascade. When combined with Act IV scaling (1.4×) and common situational modifiers (Low Morale ×1.3, Weather ×1.15), the effective daily probability (  ) frequently exceeds 40%.
+  
+
+At a    of 0.42, the player faces a binomial distribution where they are statistically likely to encounter approximately 3 events in any given 7-day week. This volume of interruption effectively dismantles the "Camp Loop." In survival games like The Oregon Trail (2021), downtime is essential for resource conversion and healing.2 In Frontier, the high frequency of events drains resources (e.g., medical supplies, durability) faster than the camp actions can replenish them. The current model does not allow for "stabilization periods," forcing the player into a permanent crisis state.
+Recommendation:
+The base probability must be lowered significantly to allow the modifiers (which represent the game's context awareness) to function without breaking the ceiling of playability. The goal is to make the standard day safe, thereby making the dangerous day noteworthy.
+* New ENCOUNTER_GATE_BASE: 0.12 (Reduced from 0.20)
+* Revised Act Scaling:
+   * Act I: 0.8 (Effective Base: 0.096)
+   * Act II: 1.0 (Effective Base: 0.12)
+   * Act III: 1.1 (Effective Base: 0.132)
+   * Act IV: 1.25 (Effective Base: 0.15)
+Mathematical Justification:
+With a base of 0.12, the "Crisis Scenario" calculation in Act IV becomes:
+  
+
+This results in roughly one event every 4.5 days during a crisis, compared to one every 2.4 days currently. This spacing is critical; it creates a 3-day window that allows the player to engage with the Recovery Mechanics proposed in Module 2. Without this breathing room, no amount of resource tuning will save the player from attrition.
+1.2 Tuning Question 2: The Calm Ramp Intensity
+Current State: +0.05 additive probability per day without an encounter.1 Problem Diagnosis: The current additive ramp functions as a punitive "Doom Timer." After 6 days of silence, the modifier adds    to the base probability. This guarantees an event regardless of player skill or current biome safety. It punishes a player for having a safe run by forcing a regression to the mean. While "Rubber Banding" is useful to keep tension high 4, this implementation is too aggressive and lacks a ceiling, effectively removing the possibility of a "lucky streak."
+Comparative Insight: The Pseudo-Random Distribution (PRD) Model
+Competitive games like Dota 2 and Warcraft 3 utilize a Pseudo-Random Distribution (PRD) to manage critical strike and event probabilities. The goal of PRD is to smooth out Random Number Generation (RNG) to prevent streaks of bad luck (no events) or clusters of extreme luck (too many events).
+In a PRD system, the probability of an event occurring on the   -th test is given by   . The constant    is significantly lower than the nominal probability. For a nominal chance of 20%, the PRD constant    is approximately 0.0557 (or ~5.6%).5
+* How PRD Works (20% Target):
+   * Day 1: 5.6% chance.
+   * Day 2: 11.2% chance.
+   * Day 3: 16.8% chance.
+   * ...
+   * Day 18: ~100% chance (Guaranteed).
+The current Frontier ramp of 5% (  ) is ironically very close to the PRD   -value for a 20% nominal chance. However, Frontier adds this ramp on top of a 20% base, whereas in PRD, the ramp is the probability. This explains why the current system feels overwhelming—it is doubling down on the probability curve.
+Recommendation:
+We must replace the infinite linear ramp with a Capped Logarithmic Decay or a Modified PRD approach. To maintain compatibility with the existing "Base + Ramp" architecture of Frontier, we will implement a "Capped Ramp" model that mimics the safety of PRD without requiring a full code rewrite.
+* New Ramp Value: +0.03 / day (Reduced from 0.05).
+* Ramp Cap: +0.12 (Maximum additive value).
+   * Mechanism: The ramp increases daily but stops adding pressure once it reaches +0.12 (after 4 days).
+   * Effect: The probability increases to ensure the world feels "alive," but it never guarantees an event. Even after 10 days of quiet, the boost remains at +0.12.
+Impact Analysis:
+Under the new system (Base 0.12 + Max Ramp 0.12), the maximum standard probability for a neutral player caps at 24%. This aligns perfectly with the lower bound of the desired 0.15–0.35 frequency range, ensuring that even "overdue" events do not feel like forced punishments.
+________________
+Module 2: The Biological Economy
+Fixing the Death Spiral and Resource Yields
+The simulator indicates a "Death Spiral" duration of 21–27 days.1 This is a catastrophic design failure. If a player is mathematically dead (resources < consumption + recovery), the game should conclude rapidly to respect the player's time. Conversely, if survival is possible, the recovery mechanisms must be powerful enough to overcome the deficit. The current spiral exists because the cost of recovery exceeds the yield of recovery actions.
+2.1 Tuning Question 3: Crisis Recovery Mechanics
+Current State: Passive recovery +4 Health/Day. No scaling.1 Problem Diagnosis: The current death spiral occurs because damage sources (Starvation, Sickness, Weather) stack linearly, often exceeding -5 to -10 health/day, while recovery is static. In The Banner Saga, recovery is binary (Rest vs Travel), and injuries require dedicated camp time.7 In Frontier, the player cannot "out-heal" a crisis because the "Rest" action consumes supplies (3 Food/5 Water) which, if missing, causes Starvation damage, negating the Rest bonus.
+Recommendation: The "Triage" Mechanic
+We must implement a non-linear recovery curve that scales with desperation. This introduces a "Comeback Mechanic" similar to the low-health adrenaline boosts found in action games or the "Desperation" states in Darkest Dungeon.
+1. Triage Scaling (The Adrenaline Curve):
+   * Threshold: If Health < 30%.
+   * Effect: Camp Healing Effectiveness +100% (Base becomes +12, assuming new base of +6).
+   * Reasoning: This allows a player at 10% health to recover to a safe threshold (30-40%) quickly (in 2-3 days), but makes topping off from 90% to 100% slow. This prevents players from abusing the high rate to always stay maxed, while giving critical players a fighting chance.
+2. The "Desperate Forage" (Auto-Bargain):
+   * Trigger: If Supplies (Food + Water) < 2 days' worth.
+   * Effect: The Forage action gains a "Scavenger's Survival Instinct" modifier.
+   * Yield Multiplier: 1.5x.
+   * Encounter Chance Reduction: 0.5x.
+   * Context: This is inspired by RimWorld’s storyteller AI, which reduces threat generation when colony wealth/population is critically low.4 It simulates the hyper-focus of a desperate survivor.
+3. Numerical Adjustment to Passive Recovery:
+   * Base Passive (Moving): +1 (Down from +4). Moving should effectively pause degradation, not heal.
+   * Camp Passive (Resting): +8 (Up from +4).
+   * Insight: This creates a distinct choice. Currently, moving heals the player almost as well as resting, devaluing the "Rest" action. By polarizing these values, we force the player to commit to a "Recovery Day," increasing strategic depth.
+2.2 Tuning Question 4: Supply Rates and Yields
+Current State: Consumption (5 Water, 3 Food). Yields (Hunting/Foraging +4).1 Problem Diagnosis: This represents the most severe mathematical flaw in the simulation and is the primary driver of the ~1.0 Action Entropy.
+* Net Flow: Eat 3 Food. Hunt for +4 Food. Net Gain: +1.
+* Days to Stockpile for 1 Travel Day: 3 days of hunting are required to fund 1 day of travel (consuming 3).
+* Ratio: 3:1 (Gather:Travel).
+The game is currently 75% grinding for food and 25% moving. This is tedious and forces the "Conservative" strategy because the player never has the surplus required to take risks.
+Comparative Data: In The Oregon Trail (1985), a successful hunt could yield hundreds of pounds of meat, capped only by the wagon's carry limit (e.g., 100-200 lbs).2 In the 2021 Apple Arcade version, hunting yields are also substantial relative to daily consumption.2 The Long Dark features calorie-dense loot (e.g., Cat Tail Stalks at 3000 Cal/kg) where a single harvest can power meaningful travel.9 Frontier's linear "Work for Dinner" model mimics a subsistence starvation simulator rather than a journey.
+Recommendation:
+We must invert the Gather:Travel ratio. One successful action must fund multiple days of travel.
+1. Consumption Rates:
+   * Water: Keep at 5/day. (Maintains pressure to stay near water/waypoints).
+   * Food: Keep at 3/day. (Standard metabolic baseline).
+2. Yield Adjustments (The Fix):
+   * Action: Hunt (High Variance):
+      * Yield: 12 – 25 Food (Average 18.5).
+      * Cost: -5 Stamina, -1 Ammo/Durability.
+      * New Ratio: One hunt funds ~6 days of travel.
+      * Risk: High stamina cost means it cannot be spammed without Resting.
+   * Action: Forage (Low Variance):
+      * Yield: 6 – 10 Food + 4 – 8 Water.
+      * New Ratio: One forage funds ~2.5 days of travel.
+Impact on Entropy:
+By increasing yields significantly, we free up "Action Slots" in the player's schedule. Instead of Hunting every day just to survive, the player Hunts once, fills the larder, and then has 5 free days to Scout, Trade, or Travel. This creates the "Agency" missing from the simulation and breaks the monotony of the optimal path.
+________________
+Module 3: Mechanical Attrition
+Equipment Wear and The Durability Curve
+3.1 Tuning Question 5: Equipment Wear and Repair
+Current State: Breakages avg 4.3–5.0 (Target 1–4). Repair +20 durability.1 Problem Diagnosis: The high breakage rate suggests that durability loss is either too frequent or the "Breakage Check" probability is too high relative to current durability levels. Furthermore, if the repair action only restores +20 (presumably out of 100), the player must spend 20-30% of their turns repairing just to stay neutral. This contributes to the "Grind" feeling identified in the Action Entropy analysis.
+Comparative Insight: In Organ Trail, vehicle reliability determines breakdown frequency, and repairs are often resource-gated (scrap) with probabilistic outcomes.10 In The Oregon Trail (2021), keeping a wagon "Greased" completely negates breakdown chances, shifting the mechanic from "Random Punishment" to "Resource Maintenance".11
+Recommendation:
+1. Sigmoid Breakage Probability:
+Instead of a linear chance (e.g., 1% chance per point of missing durability), use a Sigmoid Curve.
+   * Safe Zone (100-50 Durability): 0% Breakage Chance.
+   * Effect: Players can safely ignore maintenance in the upper half, reducing click-fatigue.
+   * Warning Zone (49-20 Durability): Linear ramp from 2% to 10%.
+   * Danger Zone (<20 Durability): Exponential ramp to 50%.
+   * Result: Breakages become a clear signal of negligence rather than bad luck.
+   2. Buff Repair Action:
+   * Repair: Restores +40 Durability (or 50% of Max).
+   * Cost: 1 Scrap/Tool.
+   * Logic: Maintenance should be a "reset," not a "top-up." One action should buy 10+ days of safety. This aligns with the "High Yield" philosophy adopted in Module 2.
+   3. Target Adjustment:
+With the Sigmoid curve, breakages will cluster only when players neglect maintenance. This brings the average down to the target 1–3 per run for competent players, while punishing risky play.
+________________
+Module 4: Spatiotemporal Pacing
+Journey Compression and Scaling
+4.1 Tuning Question 6: Journey Length Compression
+Current State: 700 miles. Target 28-55 days. Arrival 4-24%.1 Problem Diagnosis:
+      * Speed Required (Fast):   .
+      * Speed Required (Slow):   .
+      * Oregon Trail wagons typically cover 15–20 miles per day.13
+      * Frontier's current issue is likely that "Resting" and "Foraging" days (0 miles traveled) are too frequent due to the low resource yields. If a player travels 1 day (20 miles) and rests 3 days (to gather food), their effective speed is 5 miles/day. To reach 700 miles at 5 miles/day takes 140 days. The game kills them via attrition long before they arrive.
+Recommendation:
+The fix for Q4 (Yields) will naturally increase effective speed by reducing non-travel days. However, 700 miles is still a long "track" for a headless simulation if the gameplay loop is repetitive.
+         * Compression: Reduce Total Distance to 500 Miles.
+         * Standardized Pace Options:
+         * Slow Pace: 15 miles/day (Safe, Low Fatigue).
+         * Steady Pace: 22 miles/day (Standard).
+         * Grueling Pace: 32 miles/day (High Risk, High Fatigue).
+         * Math Check: At "Steady" (22 miles/day), covering 500 miles requires 22.7 travel days. Allowing for a 1:1 Travel:Camp ratio (a healthy, balanced run), the total run time is ~45 days. This fits perfectly into the 28–55 day target window defined in the handoff.
+4.2 Tuning Question 7: Difficulty Curve Shape
+Current State: Linear (0.8 to 1.4).1 Problem Diagnosis: Linear scaling is often perceived as "unfair" in survival games because player power does not scale linearly; conversely, player power usually decreases due to resource attrition and max-health decay. A linear difficulty increase against a declining player capability creates a double-negative divergence, where the gap between challenge and skill widens exponentially toward the end game.
+Recommendation: The "Step-Logarithmic" Model
+The difficulty should not rise smoothly. It should have "Plateaus" where the player can recover, followed by "Spikes" that test readiness.
+         * Act I (The Buffer): Multiplier 0.6.
+         * Purpose: Allow players to stockpile food and morale. This creates an "Inventory Buffer" that acts as a secondary health bar.
+         * Act II (The Baseline): Multiplier 1.0.
+         * Purpose: The standard difficulty. Players begin to burn through their Act I buffer.
+         * Act III (The Crucible): Multiplier 1.3.
+         * Purpose: High pressure. This Act tests the efficiency of the player's engine.
+         * Act IV (The Sprint): Multiplier 1.5 but reduce Encounter Frequency, increase Encounter Severity.
+         * Insight: In the final Act, constant small interruptions are annoying. Shift the threat model to "High Stakes Gates" (e.g., massive river crossings, blizzard checks) rather than frequent minor attrition.
+________________
+Module 5: Strategic Entropy & Targets
+Redefining Success
+5.1 Tuning Question 8: Balance Target Ranges
+Current State: Encounter Freq (0.15–0.35), Breakages (1–4).1 Proposal: The simulator targets should be adjusted to reflect the high-variance nature of the proposed changes.
+         * Encounter Frequency Target: 0.20 – 0.40.
+         * Reasoning: With the new "High Yield" economy, players have larger resource buffers. They can handle more encounters if they have the resources to solve them. Frequency is less important than Solvability.
+         * Equipment Breakages Target: 1 – 5.
+         * Reasoning: If we use the Sigmoid curve, "Bad" players (who ignore maintenance) will see 8+ breakages, while "Good" players will see 0-1. The average range should be wide to reflect this skill gap.
+         * Survival Rate Target:
+         * Conservative Strategy: Target 40%. (Should be safer but slower, risking starvation due to journey length).
+         * Optimal Strategy: Target 65-75%. (Active management of risk/reward should pay off).
+         * Critical Note: The current state where Conservative > Optimal is the primary metric to invert.
+________________
+Module 6: Implementation Specification
+The "Golden Values" Configuration Block
+To satisfy the user's request for "concrete numerical recommendations," the following configuration block serves as the direct implementation guide for the src/simulator/index.ts tuning.
+Table 1: Probability & Event Tuning
+Parameter
+	Current Value
+	Recommended Value
+	Implementation Notes
+	ENCOUNTER_GATE_BASE
+	0.20
+	0.12
+	Reduces background noise; allows modifiers to breathe.
+	ENCOUNTER_RAMP_DAILY
+	0.05
+	0.03
+	Slower accumulation to prevent "Doom Timer."
+	ENCOUNTER_RAMP_CAP
+	N/A
+	0.12
+	Hard cap prevents probability from exceeding 24% naturally.
+	ACT_SCALING_I
+	0.8
+	0.6
+	Gentle start to allow buffer building.
+	ACT_SCALING_IV
+	1.4
+	1.25
+	Reduced top-end frequency pressure.
+	Table 2: Resource Economy Tuning
+Parameter
+	Current Value
+	Recommended Value
+	Implementation Notes
+	DAILY_CONSUMPTION_FOOD
+	3
+	3
+	Unchanged.
+	DAILY_CONSUMPTION_WATER
+	5
+	5
+	Unchanged.
+	ACTION_HUNT_YIELD_MIN
+	4
+	12
+	3x Buff. Essential for 1:6 Gather:Travel ratio.
+	ACTION_HUNT_YIELD_MAX
+	4
+	25
+	High variance creates excitement ("Big Kill" moments).
+	ACTION_FORAGE_YIELD
+	4
+	8
+	Reliable baseline for low-risk play.
+	REPAIR_AMOUNT
+	20
+	40
+	One repair action = 50% durability restoration.
+	Table 3: Health & Recovery Tuning
+Parameter
+	Current Value
+	Recommended Value
+	Implementation Notes
+	PASSIVE_HEAL_MOVE
+	4
+	1
+	Nerf "walking it off". Moving is not healing.
+	PASSIVE_HEAL_CAMP
+	4
+	8
+	Buff dedicated resting.
+	TRIAGE_THRESHOLD
+	N/A
+	0.30 (30% HP)
+	Trigger point for "Adrenaline" recovery.
+	TRIAGE_MULTIPLIER
+	N/A
+	2.0x
+	Double healing effectiveness below threshold.
+	Table 4: World Parameters
+Parameter
+	Current Value
+	Recommended Value
+	Implementation Notes
+	TOTAL_DISTANCE
+	700
+	500
+	Tighten the loop to fit 28-55 day target.
+	BASE_TRAVEL_SPEED
+	N/A
+	22
+	Assuming "Steady" pace.
+	________________
+Conclusion
+The imbalance in Frontier stems from a conflict between Input Randomness (Encounters) and Output Constriction (Low Yields). The current tuning creates a scenario where the "Optimal" strategy is to do as little as possible to avoid rolling the dice—hence the dominance of the "Conservative" playstyle.
+By strictly implementing the values in Module 6, specifically the 300% buff to Gathering Yields and the reduction of Base Encounter Rate to 0.12, the simulation will shift fundamental poles. Players will be empowered to take risks (Travel/Push) because they can afford the recovery cost. The "Death Spiral" will be replaced by a "Recovery Loop," where crisis is a temporary state to be solved, not a permanent trajectory.
+The recommendation is to run npm run simulate:full with these adjusted values. We project survival rates for "Optimal" strategies to rise to the 70-80% range, while "Conservative" strategies will likely fall to 50-60% due to the inability to capitalize on high-yield events and the eventual attrition of the capped journey distance. This inversion corrects the Action Entropy and rewards player agency, satisfying the core design goals of the simulation.
+Works cited
+         1. HANDOFF_BALANCE_RESEARCH.md
+         2. The Oregon Trail: Won better! - Data Driven Gamer, accessed February 18, 2026, https://datadrivengamer.blogspot.com/2024/05/the-oregon-trail-won-better.html
+         3. How do you balance a game with many variables? : r/gamedev - Reddit, accessed February 18, 2026, https://www.reddit.com/r/gamedev/comments/myvigx/how_do_you_balance_a_game_with_many_variables/
+         4. Rubberbanding done right. : r/gamedesign - Reddit, accessed February 18, 2026, https://www.reddit.com/r/gamedesign/comments/b24epz/rubberbanding_done_right/
+         5. Random Distribution - Dota 2 Wiki, accessed February 18, 2026, https://dota2.fandom.com/wiki/Random_Distribution
+         6. How does the Pseudo Random Distribution (PRD) work for multiple units with the same PRD ability? : r/DotA2 - Reddit, accessed February 18, 2026, https://www.reddit.com/r/DotA2/comments/apg2i1/how_does_the_pseudo_random_distribution_prd_work/
+         7. What advice can you give me for balancing spending renown on levels/supplies/items throughout the trilogy? : r/bannersaga - Reddit, accessed February 18, 2026, https://www.reddit.com/r/bannersaga/comments/ekjecf/what_advice_can_you_give_me_for_balancing/
+         8. My Oregon Trail Tips! : r/AppleArcade - Reddit, accessed February 18, 2026, https://www.reddit.com/r/AppleArcade/comments/rro5qj/my_oregon_trail_tips/
+         9. Weight to benefit ratios in tLD : r/thelongdark - Reddit, accessed February 18, 2026, https://www.reddit.com/r/thelongdark/comments/6wi8kj/weight_to_benefit_ratios_in_tld/
+         10. Organ Trail Steam Review - Games That I Play - WordPress.com, accessed February 18, 2026, https://gamesthatiplay.wordpress.com/2013/06/19/organ-trail-steam-review/
+         11. Oregon Trail Tips & Tricks : r/AppleArcade - Reddit, accessed February 18, 2026, https://www.reddit.com/r/AppleArcade/comments/vcn6dy/oregon_trail_tips_tricks/
+         12. Axle, Wagon Wheel ETC vs repair kit ? :: The Oregon Trail General Discussions, accessed February 18, 2026, https://steamcommunity.com/app/2013360/discussions/0/3722820118831385642/
+         13. A Day on the Trail - Learn what Pioneers did on their Oregon Trail journey, accessed February 18, 2026, https://oregontrailcenter.org/day-on-the-trail

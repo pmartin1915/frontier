@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -3.13 -c \"from pixellab import Client; import inspect; print(inspect.getsource(Client.generate_image))\")",
+      "Bash(taskkill //F //IM python.exe)",
+      "Bash(py -3.13 -c \"from pixellab import Client; print([m for m in dir(Client) if not m.startswith(''_'')])\")",
+      "Bash(py -3.13 -m sprite_forge.cli generate --help)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

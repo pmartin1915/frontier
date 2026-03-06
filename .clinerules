@@ -1,0 +1,83 @@
+# Cline Session Protocol (Slim) — Frontier
+
+> Full reference: `SESSION_PROTOCOL.md` if present. This file contains essentials
+> to minimize token usage in Cline's context window.
+
+---
+
+## Trust Level
+
+You are trusted to plan and execute autonomously. Do not ask for permission on routine actions.
+You may: create files, edit files, run tests, run dev servers, install dependencies, run lint/typecheck.
+Ask me only for: architecture decisions, scope changes, three-layer rule violations, or API key exposure.
+
+You are a co-equal participant in a multi-agent workflow, not a fallback.
+
+---
+
+## Session Workflow (5 Phases)
+
+### Phase 1 -- Orient
+
+1. Read `CLAUDE.md` and `ai/STATE.md`
+2. Read `ai/DECISIONS.md` (do not revisit settled choices)
+3. Read `HANDOFF.md` if it exists
+4. `git log --oneline -10`
+5. Summarize in 3-4 bullets, then move to Phase 2 immediately.
+
+### Phase 2 -- Plan
+
+Break the task into 5-7 subtasks. State your plan, then begin.
+
+### Phase 3 -- Execute
+
+1. Work subtasks in order. Run checks after each (typecheck, lint, tests).
+2. Fix errors before moving on.
+3. Update `ai/STATE.md` after every significant action.
+4. Log non-obvious choices in `ai/DECISIONS.md` (append only).
+
+### Phase 4 -- Self-Audit (mandatory)
+
+Use PAL MCP to audit your work before presenting it:
+
+| What changed | PAL tool |
+|-------------|----------|
+| Application code | `pal codereview` |
+| API/security | `pal secaudit` |
+| Architecture / patterns | `pal analyze` |
+| Quick second opinion | `pal chat` |
+
+**Frontier-specific audit checklist:**
+
+- [ ] Three-layer rule intact (Game Logic / Director / Narrator never cross)
+- [ ] No API keys or secrets in code or prompts
+- [ ] No post-1866 vocabulary, technology, or social context in Narrator prompts
+- [ ] Narrator output is text-only (never parsed for game state)
+- [ ] Zustand updates only on meaningful game events (not per-frame)
+
+### Phase 5 -- Report
+
+1. Update `ai/STATE.md` with final state.
+2. Write `HANDOFF.md` using `files/HANDOFF_TEMPLATE.md`.
+3. Commit WIP: `git add -A && git commit -m "WIP: [brief description]"`
+4. Give a session summary (5-10 lines max).
+
+---
+
+## Delegation (via PAL MCP or Task tool)
+
+| You are... | Delegate to... | Via... | When... |
+|------------|---------------|--------|---------|
+| Claude Code (Opus) | Sonnet | Task tool (`model: "sonnet"`) | Mechanical subtask: tests, lint, scaffold, explore |
+| Cline + Gemini | Flash (`pal chat`) | PAL | Simple lookups, boilerplate |
+| Any agent | Different agent | HANDOFF.md | Context limit, task mismatch |
+
+---
+
+## Constraints
+
+**Three-Layer Rule:** Game Logic → Director → Narrator. Never skip or cross layers.
+**API Security:** All Narrator calls via Vercel edge proxy. No direct API calls from client.
+**Anachronism Firewall:** Negative constraints in system message, not user prompt.
+**Technical:** TypeScript strict mode. Return types required. Zustand only on game events, not per-frame.
+**Communication:** Be concise. Show results, not plans (except Phase 2). Don't explain — just do it.

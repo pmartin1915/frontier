@@ -1,0 +1,78 @@
+# Cline Session Protocol (Slim)
+
+> Full reference: `SESSION_PROTOCOL.md`. This file contains the essentials
+> to minimize token usage in Cline's context window.
+
+---
+
+## Trust Level
+
+You are trusted to plan and execute autonomously. Do not ask for permission on routine actions.
+You may: create files, edit files, run tests, run dev servers, install dependencies, and run lint/typecheck.
+Ask me only for: architecture decisions, scope changes, or anything involving real patient data.
+
+You are a co-equal participant in a multi-agent workflow, not a fallback.
+
+---
+
+## Session Workflow (5 Phases)
+
+### Phase 1 -- Orient
+
+1. Read this file and any files in `.agent/skills/`
+2. Read `ai/STATE.md` if it exists
+3. Read `ai/DECISIONS.md` if it exists (do not revisit settled choices)
+4. Read `HANDOFF.md` if it exists
+5. `git log --oneline -10`
+6. Summarize in 3-4 bullets, then move to Phase 2 immediately.
+
+### Phase 2 -- Plan
+
+Break the task into 5-7 subtasks. State your plan, then begin.
+
+### Phase 3 -- Execute
+
+1. Work subtasks in order. Run checks after each (typecheck, test, lint).
+2. Fix errors before moving on.
+3. Update `ai/STATE.md` after every significant action (not just subtask completion).
+4. Log non-obvious choices in `ai/DECISIONS.md` (append only, never rewrite).
+5. If approaching context limits or the task suits a different agent, jump to Phase 5.
+
+### Phase 4 -- Self-Audit (mandatory)
+
+Use PAL MCP to audit your work before presenting it:
+
+| What changed | PAL tool |
+|-------------|----------|
+| Application code | `pal codereview` |
+| API security | `pal secaudit` |
+| Architecture / patterns | `pal analyze` |
+| Quick second opinion | `pal chat` |
+
+**Cline + Gemini sessions:** Delegate audit to Kimi or Flash via PAL.
+
+### Phase 5 -- Report
+
+1. Update `ai/STATE.md` with final state.
+2. Back up and write HANDOFF.md using `HANDOFF_TEMPLATE.md`.
+3. Commit WIP.
+4. Give a session summary (5-10 lines max).
+
+---
+
+## Delegation (via PAL MCP or Task tool)
+
+| You are... | Delegate to... | Via... | When... |
+|------------|---------------|--------|---------- |
+| Claude Code (Opus) | Sonnet | Task tool (`model: "sonnet"`) | Mechanical subtask: tests, lint, scaffold, explore |
+| Cline + Gemini | Kimi (`pal chat`) | PAL | Speed audit, visual/UI review |
+| Cline + Gemini | Flash (`pal chat`) | PAL | Simple lookups, boilerplate generation |
+| Any agent | Different agent | HANDOFF.md (gear shift) | Context limit, task mismatch, rate limit |
+
+---
+
+## Constraints
+
+**Technical:** TypeScript strict mode. Functions must have return types. Components under 200 lines.
+**Three-Layer Rule:** Game Logic -> Director -> Narrator. No skipping layers.
+**Communication:** Be concise. Show results, not plans (except Phase 2). Don't explain -- just do it.

@@ -1,0 +1,333 @@
+﻿Architecting the Autonomous Game Studio: A Deep-Dive into Self-Improving Agent Workflows for 'Frontier'
+1. Introduction: The Convergence of Systems Thinking and Agentic Development
+The software development landscape is undergoing a tectonic shift, moving from "human-in-the-loop" paradigms where developers manually drive tools, to "human-on-the-loop" architectures where developers orchestrate autonomous agents. For 'Frontier', a narrative-driven survival game set on the Goodnight-Loving Trail of 1866, this shift offers a profound opportunity. By integrating the Antigravity IDE, Claude Code, and Gemini 3 Pro via the Model Context Protocol (MCP), we can construct a "Synthetic Game Studio" where the AI does not merely assist but actively plays, observes, diagnoses, and refines the application.
+For a developer with a background as a DNP (Doctor of Nursing Practice) student, this workflow aligns perfectly with the core competencies of advanced clinical practice: Evidence-Based Practice, Diagnostic Reasoning, and Quality Improvement (QI) Cycles. Just as a DNP practitioner assesses patient data, diagnoses pathology, intervenes, and evaluates outcomes in a continuous loop (Plan-Do-Study-Act), an autonomous agentic workflow must observe the game state (Patient Assessment), identify bugs or balance issues (Diagnosis), write code (Intervention), and verify the fix via simulation (Outcome Evaluation).
+This report serves as a comprehensive architectural blueprint for hardening this workflow. It moves beyond basic tool utilization to establish a rigorous Self-Improvement Cycle. We will explore the decoupling of the Phaser.js engine for headless simulation, the implementation of Zustand as a "Blackboard" for agent visibility, and the utilization of Gemini 3 Pro’s advanced reasoning and vision capabilities to serve as the "Lead Architect" and "Historical Consultant." This document provides the technical schemas, historical datasets, and integration patterns required to transform 'Frontier' from a manual coding project into a self-evolving software ecosystem.
+________________
+2. The Cognitive Architecture: Orchestrating the Synthetic Studio
+To achieve true autonomy where Claude can "see" and "play" the game, we must establish a cognitive architecture that defines how the system perceives its environment, reasons about potential actions, and executes changes. This requires a sophisticated orchestration of models, each assigned a role based on their specific strengths—execution vs. reasoning.
+2.1 The Orchestration Layer: PAL and the Consensus Model
+The Provider Abstraction Layer (PAL) MCP Server acts as the central nervous system of this architecture. In a hardened workflow, relying on a single model for both coding and architectural reasoning often leads to context drift and hallucination. PAL facilitates a "Consensus and Handoff" pattern that leverages the specialized capabilities of different models.1
+2.1.1 The Role of Claude Code (The Senior Engineer)
+Claude Code serves as the primary Execution Agent. It operates within the terminal, managing the file system, running build commands, and executing git operations. Claude acts as the "hands" of the system—it is responsible for syntax correctness, file manipulation, and the mechanical execution of the Ralph Wiggum Loop.2 Its strength lies in its tight integration with the CLI and its ability to act on the codebase directly.
+2.1.2 The Role of Gemini 3 Pro (The Lead Architect & QA)
+Gemini 3 Pro is deployed as the Reasoning Agent. With a context window of up to 1 million tokens and advanced multimodal capabilities (native vision and complex reasoning), Gemini acts as the "brain." It is responsible for:
+* Architectural Review: Analyzing the entire codebase structure to ensure new features do not violate separation of concerns.
+* Historical Auditing: Verifying that game mechanics (e.g., cattle thirst decay rates) align with the historical realities of the 1866 Goodnight-Loving Trail.5
+* Visual Regression: analyzing screenshots captured by Playwright to detect rendering artifacts, UI overlaps, or anachronistic visual elements.7
+2.1.3 The "Clink" Bridge: Enabling Agent Communication
+To automate the interaction between the Engineer (Claude) and the Architect (Gemini), the workflow utilizes the clink (CLI + Link) tool provided by PAL.1 This tool allows the primary Claude Code session to spawn isolated "sub-agents" to perform specific reasoning tasks without polluting the main context window.
+* Operational Pattern: When Claude is tasked with a complex refactor (e.g., "Optimize the particle system for the sandstorm hazard"), it can invoke clink to spawn a Gemini 3 Pro sub-agent.
+* Task Delegation: The sub-agent receives the relevant file context and a specific query (e.g., "Review this particle emitter config for performance bottlenecks in a headless environment").
+* Context Isolation: The sub-agent performs the analysis in a fresh context window, returning only the synthesized recommendations or corrected code blocks to Claude. This "Context Isolation" is critical for maintaining long-running sessions without hitting token limits or suffering from attention degradation.1
+2.2 The "Ralph" Self-Improvement Loop
+Autonomy is defined by the system's ability to operate continuously until a goal is met. The Ralph Wiggum Loop provides the mechanical persistence for this workflow. While a standard development loop waits for user input, the Ralph loop is a recursive shell script that feeds tasks to the agent until specific exit criteria are satisfied.2
+2.2.1 Hardening the Loop: State Persistence
+A naive loop forgets its progress if the session crashes. A hardened workflow implements Stateful Persistence via a "Blackboard" file (e.g., activity.md or run_log.json) that tracks the loop's state across iterations.
+* Activity Log: At the start of each iteration, the script reads activity.md to determine the current phase (e.g., PLANNING, IMPLEMENTING, TESTING, REFACTORING).
+* Exit Conditions: The loop must have rigorous stop hooks. It should not exit simply because a command finished; it must verify:
+   * Unit Tests: All Jest/Vitest suites pass.
+   * Build Verification: The project builds without TypeScript errors.
+   * Simulation Metrics: The headless simulation returns a "pass" on game balance (e.g., survival rate > 0%).
+   * Explicit Signal: The agent writes STATUS: COMPLETED to the activity log.11
+2.2.2 Antigravity: The "Mission Control"
+While the Ralph loop executes in the terminal, Google Antigravity provides the graphical orchestration layer. Antigravity moves the developer from a "coding" role to a "managing" role.
+* Agent Manager: The Agent Manager interface allows you to spawn parallel agents. You can have one agent focused on the backend API (Vercel/Node) while another works on the frontend React components.
+* Rules & Workflows: You can define global rules in .agent/rules that act as "System Prompts" for every agent instance. For 'Frontier', these rules might enforce: "All game state must be mutated via Zustand actions," or "Historical dates must align with the 1866 timeline".14
+* Artifacts: Antigravity agents generate "Artifacts"—structured outputs like implementation plans, diffs, or simulation reports—that allow you to review the agent's logic before it commits code. This provides a "Human-on-the-loop" safety valve.16
+2.3 The "Vision" Stack: Bridging Canvas and DOM
+One of the most significant challenges in testing Phaser games is that the HTML5 Canvas is a "black box" to standard DOM-based tools. An agent inspecting the DOM sees only a <canvas> element, not the sprites, UI text, or cattle herds drawn on it. To enable Claude to "see" and "play," we must implement a Dual-Pipeline Visibility Strategy.
+* Semantic Visibility (The "Soul"): We must expose the internal Phaser Scene graph and Zustand state to the global window object. This allows the agent to query the game state directly via MCP tools (e.g., "What is the player's current water level?").
+* Pixel Visibility (The "Eyes"): We utilize Playwright to capture screenshots of the canvas. These images are passed to Gemini 3 Pro, which uses its vision capabilities to detect visual bugs, text rendering issues, or z-index conflicts that semantic inspection cannot reveal.7
+________________
+3. Hardening the Tech Stack: Designing for Agent Observability
+An autonomous agent is only as effective as the system it interacts with. To allow an AI to develop 'Frontier' effectively, the application architecture must be "agent-friendly." This implies high observability, decoupled logic, and deterministic state management.
+3.1 State Management: The Zustand-MCP Bridge
+Zustand is the ideal state manager for this architecture due to its transient update capabilities and lack of boilerplate.19 However, for an agent to "debug" the game, the store must be strictly typed and fully observable via the Model Context Protocol.
+3.1.1 The "Blackboard" Pattern
+We implement a "Blackboard" architectural pattern where the Zustand store acts as the single source of truth for both the Game Engine (Phaser) and the Agent. This requires a mechanism to serialize the state and expose it to the MCP server.
+Implementation Strategy:
+1. State Serialization Middleware: Implement a custom Zustand middleware that serializes critical game state (Player Health, Inventory, Trail Progress, Weather) to a debug_state.json file or a local WebSocket in real-time.19
+2. Custom MCP Server: Develop a lightweight Node.js MCP server that exposes a tool called read_game_state.
+   * Input: Optional parameters to request specific state slices (e.g., { slice: 'inventory' }).
+   * Output: A structured JSON object representing the exact state of the simulation.
+   * Mechanism: The server reads the serialized debug_state.json or queries the running browser instance via the Chrome DevTools Protocol (CDP) through Puppeteer/Playwright.21
+3.1.2 Synchronization: The "Turn-Based" Illusion
+Phaser runs on a requestAnimationFrame loop (typically 60fps), while the agent operates on a request-response cycle. To prevent "flaky" tests where the agent reads the state before an animation completes, we must synchronize these clocks.
+* Event Emitter Integration: The game engine should emit specific events (ACTION_COMPLETE, TURN_ENDED, SCENE_LOADED) via a global EventEmitter.
+* Agent "Wait" Tools: The agent's toolset must include a command like wait_for_event('TURN_ENDED'). This effectively pauses the agent's execution loop until the game engine signals stability, turning a real-time game into a deterministic, turn-based system for testing purposes.24
+3.2 The Headless Simulation Engine
+For rapid iteration—such as balancing the economy or testing survival rates over 100 days—rendering graphics is a bottleneck. The "Self-Improvement" loop requires running thousands of simulated days in seconds. This necessitates a Headless Mode.
+3.2.1 Configuring Phaser Headless
+You must configure a specific entry point for Phaser.HEADLESS mode. This mode skips the rendering pipeline entirely, running only the Update loop, Physics, and Logic systems.26
+* Environment Shimming: Since Phaser expects a browser environment, you must use jsdom and node-canvas to shim the window, document, and canvas objects within the Node.js environment. This allows the Arcade Physics engine to calculate collisions without a GPU.27
+* Decoupled Logic Systems: Game logic must be strictly separated from visual presentation. Logic regarding movement, resource consumption, and event triggering should reside in "Systems" (e.g., WeatherSystem, RationSystem) that can be instantiated independently of a visual Scene. This aligns with Dependency Injection principles, allowing the agent to inject mock systems for testing.25
+3.2.2 The Simulation Workflow
+1. Agent Task: "Balance the thirst decay rate for the summer season."
+2. Action: The agent modifies the thirstDecay constant in GameConfig.ts.
+3. Simulation: The agent executes npm run simulate -- --days=100 --runs=50. This script spins up the headless engine and plays 50 full game loops in seconds.
+4. Reporting: The script outputs a balance_report.json (e.g., "Average Survival Rate: 12%").
+5. Refinement: The agent analyzes the report, notes that 12% is historically inaccurate (too low), adjusts the parameter, and re-runs the simulation until the target metric is met.30
+________________
+4. The "Self-Improvement" Workflow: A PDSA Cycle
+The ultimate goal is a system where the AI iteratively improves the code with minimal human intervention. This mirrors the Plan-Do-Study-Act (PDSA) cycle used in healthcare quality improvement. We can map the agent's workflow directly to this model.
+4.1 Phase 1: Plan (The "Injector")
+The cycle begins with a task from the Product Requirements Document (PRD). For example: "Implement the Alkali Water Hazard at Horsehead Crossing."
+* Context Loading: Claude loads the SKILL.md for "Game Feature Implementation" and retrieves historical data regarding Horsehead Crossing (alkali poisoning, quicksand risks) from the LORE.md file.32
+* Drafting: Claude synthesizes the React component for the user notification and the Phaser logic for the hazard event.
+* TDD Enforcement: Crucially, the agent first writes a failing test case asserting that "Drinking at Horsehead Crossing increases the poison status effect".3
+4.2 Phase 2: Do (The "Simulator")
+Once the code is applied, the "Simulator" agent takes over execution. This is where Playwright MCP and Gemini 3 Pro become critical.
+* Visual Audit: The agent spins up the game in a local dev server. Playwright navigates the game to the specific location (Horsehead Crossing).35
+* "Seeing" the Game: The agent captures a screenshot of the canvas. This image is sent to Gemini 3 Pro with a specific prompt: "Analyze this screenshot. Does the 'Poisoned' status icon appear clearly? Is it visually distinct from the 'Thirsty' icon? Does the UI align with the 1866 western aesthetic?".7
+* Functional Play: The agent uses Playwright to click the "Drink" button and verifies via read_game_state that the poison variable increments correctly.
+4.3 Phase 3: Study (The "Evaluator")
+This is the most critical step for true autonomy. The agent must judge the quality of its own work against the "Ground Truth."
+* Historical Fidelity Check: Using PAL, Claude queries Gemini: "The current logic applies a 10% death rate for alkali poisoning. Based on historical records of the 1866 drive, is this accurate?"
+* Gemini's Reasoning: Gemini accesses the embedded historical context (Section 5) and responds: "Historical records indicate significant cattle loss due to alkali water at Horsehead Crossing. 10% is too low for an unchecked herd. Recommend increasing to 30-40% if the player fails the 'Scout' check.".37
+* Visual Feedback: Gemini might also flag that the "Poison" icon looks too modern (e.g., a biohazard symbol) and suggest a more period-appropriate icon (e.g., a skull and crossbones or a sick cow sprite).
+4.4 Phase 4: Act (The "Refiner")
+Before merging the code, the agent runs a final Regression Suite.
+* It runs the headless simulation to ensure the new hazard doesn't make the game mathematically impossible (0% survival rate).
+* It checks against the global rules in Antigravity to ensure no coding standards were violated (e.g., putting game logic inside a UI component).
+* Self-Correction: If any check fails, the agent automatically generates a new commit to fix the issue, logs the error in activity.md, and restarts the verification loop.38
+________________
+5. Historical Ground Truth: The Agent's Oracle
+To enable the agent to make content decisions, not just code decisions, it requires a "Ground Truth" dataset. You must embed this data into the agent's context (via a LORE.md file or a dedicated MCP Resource). This data allows the agent to calibrate game balance (travel speeds, resource consumption, hazard probabilities) against historical reality.
+5.1 The Goodnight-Loving Trail (1866) Dataset
+The following tables provide the specific data points the agent should use for calibration.
+Table 1: Key Landmarks & Hazards (1866 Route)
+Landmark
+	Distance (Miles)
+	Historical Hazard Context
+	Simulation Logic Recommendation
+	Fort Belknap, TX
+	0
+	Start Point. The gathering point for the herd.
+	Initial supply purchase. Crew hiring point. Set initial morale to High.
+	Butterfield Stage Route
+	0 - 80
+	The "Dry Drive". A notorious waterless stretch. High stress.
+	Mechanism: Increase water consumption by 2x. Rapid thirst decay. Cows go blind from thirst (blindness status).
+	Horsehead Crossing
+	~80
+	Alkali Water & Quicksand. The Pecos River here is briny and banks are steep.
+	Hazard Event: "Alkali Poisoning." If thirst > 90%, cattle drink uncontrollably -> 10-30% death rate. Requires "Holding" mechanic.
+	Pecos River (Upstream)
+	80 - 300
+	Terrain & Comanches. Narrow trails, steep banks preventing access to water.
+	Risk: Stampede risk if cattle smell water but can't reach it. High probability of Comanche raids.
+	Pope's Crossing
+	~350
+	River Ford. A reliable crossing point near present-day NM border.
+	Moderate crossing risk (drowning chance ~5%). Opportunity to rest.
+	Bosque Redondo
+	~450
+	Destination (1866). Fort Sumner/Navajo Reservation.
+	Sale Point: Sell steers for ~$0.08/lb (Gold). Keep stocker cattle for drive north.
+	Raton Pass
+	~600
+	Toll Road. Controlled by "Uncle Dick" Wootton.
+	Choice: Pay $0.10/head toll OR attempt dangerous bypass (high injury risk).
+	Source Integration: 37
+Table 2: Resource Logistics (Ground Truth)
+Resource
+	1866 Historical Average
+	Game Balance Baseline
+	Notes for Agent Calibration
+	Herd Speed
+	10 - 15 miles / day
+	12 miles / day
+	>15 mi/day causes significant weight loss. <10 mi/day consumes too many rations.
+	Water Needs
+	10 - 30 gallons / day / steer
+	20 gal (Base)
+	Increases to 30 gal in "Summer/Dry" state. Critical for "Dry Drive" logic.
+	Cattle Weight
+	~800 - 1000 lbs (Longhorn)
+	Start: 800 lbs
+	Weight loss on trail is inevitable. Aim for <10% total loss for a "Success" state.
+	Crew Rations
+	18 oz flour, 1.6 oz coffee / day
+	1 lb flour / day
+	Staples: "Sourdough bullets" and "Pecos strawberries" (beans). Coffee is critical for morale.
+	Wagon Capacity
+	~2,500 - 3,000 lbs
+	Max: 3,000 lbs
+	Overloading (>3000) drastically increases AXLE_BREAK probability.
+	Source Integration: 43
+Table 3: Economic Variables (1866)
+Item
+	Cost (1866 Dollars)
+	Simulation Implication
+	Trail Boss Salary
+	$100 - $125 / month
+	Monthly deduction from cash_on_hand. High skill cost.
+	Cook Salary
+	$60 / month
+	Critical for converting raw flour -> rations.
+	Drover (Cowboy)
+	$30 / month
+	Base unit of labor. 1 drover needed per ~300 cattle.
+	Steer Sale Price
+	~$12,000 (Gold) for 1,200 head
+	Win Condition revenue target.
+	Raton Pass Toll
+	$0.10 / head
+	Significant late-game expense.
+	Source Integration: 6
+________________
+6. Implementation Guide: Hardening the Workflow
+This section details the specific configuration steps, file structures, and scripts required to implement this autonomous loop.
+6.1 Step 1: Antigravity & Agent Skills Configuration
+You must define Skills that allow the agent to perform complex actions deterministically.
+File: .agent/skills/game-test/SKILL.md
+name: run-game-test description: Runs the headless simulation suite to verify game balance and mechanics.
+Run Game Test
+Usage
+Use this skill when verifying if a code change has negatively impacted game balance (e.g., survival rates) or introduced regression bugs.
+Steps
+1. Build Project: Run npm run build to ensure latest TypeScript is compiled.
+2. Run Headless Sim: Execute npm run test:headless.
+   * This runs scripts/simulation/headless-runner.js.
+   * It plays 50 iterations using HeadlessScene.
+3. Analyze Report: Read test-results/balance-report.json.
+4. Verification Logic:
+   * If survival_rate < 50%, difficulty is too high (FAIL).
+   * If survival_rate > 95%, difficulty is too low (FAIL).
+   * If error_count > 0, the test FAILED.
+33
+6.2 Step 2: Playwright MCP & Visual Audit
+To give Claude "eyes," you must configure the Playwright MCP server.
+   1. Install Server: npm install -g @modelcontextprotocol/server-playwright
+   2. Configure claude_desktop_config.json:
+JSON
+{
+ "mcpServers": {
+   "playwright": {
+     "command": "npx",
+     "args": ["-y", "@modelcontextprotocol/server-playwright"]
+   }
+ }
+}
+
+52
+   3. Visual Audit Script: Create scripts/visual-audit.js using Playwright to navigate to the local server, capture a screenshot of the <canvas>, and save it to .artifacts/audit.png for Gemini to analyze.
+6.3 Step 3: The Vercel Preview Feedback Loop
+To close the loop with a production-like environment:
+      1. Automated Deploy: The agent runs vercel deploy --preview > deploy_url.txt to push the code.
+      2. Wait Strategy: It polls deployment status using vercel inspect until the state is READY.55
+      3. Live Verification: The agent uses the playwright MCP tool to visit the unique deploy_url (e.g., https://frontier-git-feat.vercel.app). It checks for console errors (CORS, missing assets) that might not appear locally.56
+6.4 Step 4: The "Ralph" Loop Script
+Create a ralph.sh script to orchestrate the autonomous cycle.
+
+
+Bash
+
+
+
+
+#!/bin/bash
+# ralph.sh - The Autonomous Development Loop
+
+MAX_ITERATIONS=10
+ITERATION=0
+
+while; do
+ echo "🤖 Ralph Loop Iteration: $ITERATION"
+ 
+ # 1. Read task from Activity Log
+ TASK=$(cat activity.md | grep "CURRENT_TASK" | cut -d: -f2)
+ 
+ # 2. Execute Claude Code
+ # Prompt instructs Claude to code, then use 'run-game-test' skill.
+ claude --prompt "Execute task: $TASK. Verify with 'run-game-test'. If fail, fix. If pass, update activity.md."
+ 
+ # 3. Check for Exit Signal
+ if grep -q "STATUS: DONE" activity.md; then
+   echo "✅ Task Complete. Exiting Loop."
+   break
+ fi
+ 
+ ITERATION=$((ITERATION+1))
+done
+
+12
+________________
+7. Hardening Strategies: Guardrails & "Thought Signatures"
+To prevent the agent from spiraling into error or consuming excessive tokens, we must implement specific guardrails.
+7.1 "Thought Signatures" for Valid Reasoning
+Gemini 3 Pro introduces "Thought Signatures" (encrypted tokens representing the model's internal reasoning chain). To ensure the agent maintains its "IQ" across the Ralph loop:
+      * Capture: When Gemini returns a plan, capture the thought_signature.
+      * Replay: When sending the Playwright screenshot back to Gemini for verification, pass the thought_signature back. This allows Gemini to recall why it asked for the screenshot and what criteria it decided to check (e.g., "Check for alkali poisoning icon"), preventing reasoning drift.58
+7.2 Rate Limiting & Thinking Levels
+Autonomous loops can be expensive.
+      * Budget Check: Implement a check in ralph.sh to stop if API costs exceed a daily limit.
+      * Thinking Level: Configure Claude to use thinking_level="low" for routine code edits (syntax fixes) and thinking_level="high" only for the "Architectural Review" and "Historical Fidelity Check" steps. This optimizes token usage vs. reasoning depth.61
+7.3 Reference Integrity
+Hardcode the historical data (Section 5) into a read-only LORE.md. Instruct the agent via System Prompt that "Historical Accuracy is a functional requirement." If the agent attempts to balance the game by making cattle consume only 1 gallon of water/day, the test must fail based on the constraints defined in LORE.md.14
+________________
+8. Conclusion
+By implementing this architecture, you are elevating your role from a developer to the Director of an Autonomous Studio. The integration of Phaser's headless simulation allows for rapid, data-driven game balancing. The Zustand "Blackboard" pattern makes the game's internal logic visible to the AI. Finally, Gemini 3 Pro, acting as the "Lead Architect," ensures that every line of code and every game mechanic honors the gritty, historical reality of the 1866 Goodnight-Loving Trail. This workflow represents the cutting edge of Agentic AI, turning the development process itself into a self-correcting, self-improving system.
+Works cited
+      1. BeehiveInnovations/pal-mcp-server: The power of Claude Code / GeminiCLI / CodexCLI + [Gemini / OpenAI / OpenRouter / Azure / Grok / Ollama / Custom Model / All Of The Above] working as one. - GitHub, accessed February 17, 2026, https://github.com/BeehiveInnovations/pal-mcp-server
+      2. How to Run Claude Code For Hours Autonomously - YouTube, accessed February 17, 2026, https://www.youtube.com/watch?v=o-pMCoVPN_k
+      3. How Claude Code works - Claude Code Docs, accessed February 17, 2026, https://code.claude.com/docs/en/how-claude-code-works
+      4. Claude Code overview - Claude Code Docs, accessed February 17, 2026, https://code.claude.com/docs/en/overview
+      5. The Goodnight-Loving Trail: A Historic Cattle Drive Route, accessed February 17, 2026, https://www.tshaonline.org/handbook/entries/goodnight-loving-trail
+      6. CHARLES GOODNIGHT IN COLORADO, accessed February 17, 2026, https://www.historycolorado.org/sites/default/files/media/document/2018/ColoradoMagazine_v43n1_Winter1966.pdf
+      7. Image understanding | Gemini API | Google AI for Developers, accessed February 17, 2026, https://ai.google.dev/gemini-api/docs/image-understanding
+      8. Gemini 3 Pro: the frontier of vision AI - Google Blog, accessed February 17, 2026, https://blog.google/innovation-and-ai/technology/developers-tools/gemini-3-pro-vision/
+      9. Gemini 3 Pro rewrites engineering workflows! | by Anirudh Syal - Medium, accessed February 17, 2026, https://medium.com/@anirudhsyal/gemini-3-pro-rewrites-engineering-workflows-363c1459db21
+      10. clink.md - BeehiveInnovations/pal-mcp-server - GitHub, accessed February 17, 2026, https://github.com/BeehiveInnovations/pal-mcp-server/blob/main/docs/tools/clink.md
+      11. frankbria/ralph-claude-code: Autonomous AI development loop for Claude Code with intelligent exit detection - GitHub, accessed February 17, 2026, https://github.com/frankbria/ralph-claude-code
+      12. A quickstart to using the Ralph Wiggum loop the right way - NOT using the Anthropic plugin. - GitHub, accessed February 17, 2026, https://github.com/coleam00/ralph-loop-quickstart
+      13. snarktank/ralph: Ralph is an autonomous AI agent loop that runs repeatedly until all PRD items are complete. - GitHub, accessed February 17, 2026, https://github.com/snarktank/ralph
+      14. Rules / Workflows - Google Antigravity Documentation, accessed February 17, 2026, https://antigravity.google/docs/rules-workflows
+      15. Google Antigravity Rules & Workflows SIMPLIFIED! - YouTube, accessed February 17, 2026, https://www.youtube.com/watch?v=jZ8c_OlIc_U
+      16. Build with Google Antigravity, our new agentic development platform, accessed February 17, 2026, https://developers.googleblog.com/build-with-google-antigravity-our-new-agentic-development-platform/
+      17. Introducing Google Antigravity, a New Era in AI-Assisted Software Development, accessed February 17, 2026, https://antigravity.google/blog/introducing-google-antigravity
+      18. See, Plan, Snap: Evaluating Multimodal GUI Agents in Scratch - arXiv, accessed February 17, 2026, https://arxiv.org/html/2602.10814v1
+      19. pmndrs/zustand: Bear necessities for state management in React - GitHub, accessed February 17, 2026, https://github.com/pmndrs/zustand
+      20. Websockets and Zustand? : r/reactjs - Reddit, accessed February 17, 2026, https://www.reddit.com/r/reactjs/comments/1cx70yo/websockets_and_zustand/
+      21. Integrating an MCP into a React Application - Agence Premier Octet, accessed February 17, 2026, https://www.premieroctet.com/blog/en/integration-mcp-dans-une-app-react
+      22. Architecture overview - Model Context Protocol, accessed February 17, 2026, https://modelcontextprotocol.io/docs/learn/architecture
+      23. Setting Claude Code with Puppeteer MCP: Browser Automation for AI-Driven Development | by Alphan EKER | Medium, accessed February 17, 2026, https://medium.com/@alphaneker40/setting-claude-code-with-puppeteer-mcp-browser-automation-for-ai-driven-development-0081280b7e5e
+      24. Phaser 3 Tutorial: Inter-Scene Communication Made Easy! - YouTube, accessed February 17, 2026, https://www.youtube.com/watch?v=5zl74QQjUDI
+      25. The Power of Dependency Injection in Phaser 3: Building a Modular Game with SOLID principles. - DEV Community, accessed February 17, 2026, https://dev.to/belka/the-power-of-dependency-injection-in-phaser-3-building-a-modular-game-with-solid-principles-5251
+      26. mikewesthad/phaser-headless - GitHub, accessed February 17, 2026, https://github.com/mikewesthad/phaser-headless
+      27. Running Phaser 3 on the server - Medium, accessed February 17, 2026, https://medium.com/@16patsle/running-phaser-3-on-the-server-4c0d09ffd5e6
+      28. Getting Started with Phaser 3 and Node.js - DEV Community, accessed February 17, 2026, https://dev.to/cschratz/getting-started-with-phaser-3-and-node-js-4mbp
+      29. Scenes | Phaser Help, accessed February 17, 2026, https://docs.phaser.io/phaser/concepts/scenes
+      30. Self-Play Reinforcement Learning for Strategic Games | by Amit Yadav | Biased-Algorithms, accessed February 17, 2026, https://medium.com/biased-algorithms/self-play-reinforcement-learning-for-strategic-games-886cf4b9baf8
+      31. RuleSmith: Multi-Agent LLMs for Automated Game Balancing - arXiv, accessed February 17, 2026, https://arxiv.org/html/2602.06232v1
+      32. Getting Started with Google Antigravity, accessed February 17, 2026, https://codelabs.developers.google.com/getting-started-google-antigravity
+      33. Agent Skills - Google Antigravity Documentation, accessed February 17, 2026, https://antigravity.google/docs/skills
+      34. Testing Phaser Games with Vitest - DEV Community, accessed February 17, 2026, https://dev.to/davidmorais/testing-phaser-games-with-vitest-3kon
+      35. Write automated tests with Claude Code using Playwright Agents - Shipyard.build, accessed February 17, 2026, https://shipyard.build/blog/playwright-agents-claude-code/
+      36. lackeyjb/playwright-skill: Claude Code Skill for browser automation with Playwright. Model-invoked - Claude autonomously writes and executes custom automation for testing and validation. - GitHub, accessed February 17, 2026, https://github.com/lackeyjb/playwright-skill
+      37. Horsehead Crossing - Texas State Historical Association, accessed February 17, 2026, https://www.tshaonline.org/handbook/entries/horsehead-crossing
+      38. 58-Skill Antigravity Aggregator: Boost Your AI IDE Agent | VERTU, accessed February 17, 2026, https://vertu.com/lifestyle/the-58-skill-power-pack-for-google-antigravity-transforming-ai-into-a-full-stack-team/?srsltid=AfmBOoqQ9sGNjziwy6WO0dpRvlLYyPy0ZLAAbZud79YfsBJRj4uxN5Wr
+      39. Goodnight Ranch History | Texas Historical Commission, accessed February 17, 2026, https://thc.texas.gov/state-historic-sites/goodnight-ranch/goodnight-ranch-history
+      40. The Goodnight-Loving Trail - Legends of America, accessed February 17, 2026, https://www.legendsofamerica.com/we-goodnight-lovingtrail/
+      41. Goodnight–Loving Trail - Wikipedia, accessed February 17, 2026, https://en.wikipedia.org/wiki/Goodnight%E2%80%93Loving_Trail
+      42. All You Need to Know About the Goodnight-Loving Trail - Frontier Life, accessed February 17, 2026, https://www.frontierlife.net/blog/2021/11/16/all-you-need-to-know-about-the-goodnight-loving-trail
+      43. The Goodnight-Loving Trail - Palmer Lake Historical Society, accessed February 17, 2026, https://palmerdividehistory.org/the-goodnight-loving-trail/
+      44. History of the Cattle drive- | TROVE GENERAL STORE - WordPress.com, accessed February 17, 2026, https://thisistrovegeneralstore.wordpress.com/2011/03/26/history-of-the-cattle-drive/
+      45. Cooking - Food Rations - Fort Scott National Historic Site (U.S. National Park Service), accessed February 17, 2026, https://www.nps.gov/fosc/learn/education/cookrations.htm
+      46. Chuck Wagon Dutch Oven Cattle drive Cook Chuck Box Livestock Boot/Pan Box - New Mexico Farm & Ranch Heritage Museum, accessed February 17, 2026, https://www.nmfarmandranchmuseum.org/wp-content/uploads/2020/12/Chuck-Wagon-3-5.pdf
+      47. Pumps and Watering Systems for Managed Beef Grazing | MU Extension, accessed February 17, 2026, https://extension.missouri.edu/publications/eq380
+      48. Two Rode Together - True West Magazine, accessed February 17, 2026, https://www.truewestmagazine.com/article/two-rode-together/
+      49. Goodnight-Loving Trail - Texas Time Travel, accessed February 17, 2026, https://texastimetravel.com/blog/goodnight-loving-trail/
+      50. Authoring Google Antigravity Skills, accessed February 17, 2026, https://codelabs.developers.google.com/getting-started-with-antigravity-skills
+      51. Google Antigravity Tutorial for Beginners: Build Your First App (Step-by-Step) - YouTube, accessed February 17, 2026, https://www.youtube.com/watch?v=-0Irz8G0PEE
+      52. Take Screenshots with Playwright MCP - Effortless Documentation Creation - YouTube, accessed February 17, 2026, https://www.youtube.com/watch?v=Jfi08dULAmw
+      53. Playwright MCP Claude Code - Testomat.io, accessed February 17, 2026, https://testomat.io/blog/playwright-mcp-claude-code/
+      54. microsoft/playwright-mcp: Playwright MCP server - GitHub, accessed February 17, 2026, https://github.com/microsoft/playwright-mcp
+      55. Vercel CLI Overview, accessed February 17, 2026, https://vercel.com/docs/cli
+      56. Connect Claude Code to Vercel in 3 Minutes (MCP Setup Guide) - YouTube, accessed February 17, 2026, https://www.youtube.com/watch?v=8lRAxqYx0Cw
+      57. Deploying Projects from Vercel CLI, accessed February 17, 2026, https://vercel.com/docs/cli/deploying-from-cli
+      58. Building AI Agents with Google Gemini 3 and Open Source Frameworks, accessed February 17, 2026, https://developers.googleblog.com/building-ai-agents-with-google-gemini-3-and-open-source-frameworks/
+      59. generative-ai/gemini/getting-started/intro_gemini_3_pro.ipynb at main - GitHub, accessed February 17, 2026, https://github.com/GoogleCloudPlatform/generative-ai/blob/main/gemini/getting-started/intro_gemini_3_pro.ipynb
+      60. Intro to Gemini 3 Pro - Colab - Google, accessed February 17, 2026, https://colab.research.google.com/github/GoogleCloudPlatform/generative-ai/blob/main/gemini/getting-started/intro_gemini_3_pro.ipynb
+      61. Gemini 3 Developer Guide | Gemini API - Google AI for Developers, accessed February 17, 2026, https://ai.google.dev/gemini-api/docs/gemini-3
