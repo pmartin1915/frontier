@@ -1,0 +1,132 @@
+name: One-Time iOS Project Init
+
+# Runs npx tauri ios init on a macOS runner, configures manual signing
+# and Info.plist, then commits the generated files back to the repo.
+# Run once via workflow_dispatch, then this workflow can be deleted.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# App lives in a subdirectory of the repo
+env:
+  APP_DIR: files/frontier-scaffold/frontier
+
+jobs:
+  ios-init:
+    name: Generate iOS Project Files
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Rust stable with iOS target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Install npm dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: npm install
+
+      - name: Run tauri ios init
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+        run: npx tauri ios init
+
+      - name: Discover generated file paths
+        id: paths
+        run: |
+          XCODEPROJ=$(find ${{ env.APP_DIR }}/src-tauri/gen/apple -name "*.xcodeproj" -type d | head -1)
+          PBXPROJ="$XCODEPROJ/project.pbxproj"
+          PLIST=$(find ${{ env.APP_DIR }}/src-tauri/gen/apple -name "Info.plist" -type f | head -1)
+
+          echo "xcodeproj=$XCODEPROJ" >> $GITHUB_OUTPUT
+          echo "pbxproj=$PBXPROJ" >> $GITHUB_OUTPUT
+          echo "plist=$PLIST" >> $GITHUB_OUTPUT
+
+          echo "Found xcodeproj: $XCODEPROJ"
+          echo "Found pbxproj: $PBXPROJ"
+          echo "Found Info.plist: $PLIST"
+
+          echo ""
+          echo "=== All generated files ==="
+          find ${{ env.APP_DIR }}/src-tauri/gen/apple -type f | head -50
+
+      - name: Configure manual code signing in Xcode project
+        run: |
+          PROJECT_FILE="${{ steps.paths.outputs.pbxproj }}"
+
+          if [ ! -f "$PROJECT_FILE" ]; then
+            echo "project.pbxproj not found at $PROJECT_FILE"
+            exit 1
+          fi
+
+          echo "Configuring manual code signing..."
+
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic/CODE_SIGN_STYLE = Manual/g' "$PROJECT_FILE"
+          sed -i '' 's/PROVISIONING_PROFILE_SPECIFIER = ""/PROVISIONING_PROFILE_SPECIFIER = "Frontier App Store"/g' "$PROJECT_FILE"
+          sed -i '' "s/DEVELOPMENT_TEAM = \"\"/DEVELOPMENT_TEAM = \"NN8F5WX25R\"/g" "$PROJECT_FILE"
+
+          echo "Manual signing configured"
+          grep -n -E "(CODE_SIGN_STYLE|PROVISIONING_PROFILE|DEVELOPMENT_TEAM)" "$PROJECT_FILE" || true
+
+      - name: Patch Info.plist
+        run: |
+          PLIST="${{ steps.paths.outputs.plist }}"
+
+          if [ ! -f "$PLIST" ]; then
+            echo "Info.plist not found at $PLIST"
+            exit 1
+          fi
+
+          echo "Patching $PLIST..."
+
+          # Encryption compliance (exempt — no non-standard encryption)
+          plutil -insert ITSAppUsesNonExemptEncryption -bool false "$PLIST" 2>/dev/null || \
+            plutil -replace ITSAppUsesNonExemptEncryption -bool false "$PLIST"
+
+          # App icon
+          plutil -insert CFBundleIconName -string "AppIcon" "$PLIST" 2>/dev/null || \
+            plutil -replace CFBundleIconName -string "AppIcon" "$PLIST"
+
+          # Full screen (no iPad split-screen for v1)
+          plutil -insert UIRequiresFullScreen -bool true "$PLIST" 2>/dev/null || \
+            plutil -replace UIRequiresFullScreen -bool true "$PLIST"
+
+          # Orientations — landscape preferred for game UI
+          plutil -remove UISupportedInterfaceOrientations "$PLIST" 2>/dev/null || true
+          plutil -insert UISupportedInterfaceOrientations -json '["UIInterfaceOrientationLandscapeLeft","UIInterfaceOrientationLandscapeRight","UIInterfaceOrientationPortrait"]' "$PLIST"
+
+          plutil -remove "UISupportedInterfaceOrientations~ipad" "$PLIST" 2>/dev/null || true
+          plutil -insert "UISupportedInterfaceOrientations~ipad" -json '["UIInterfaceOrientationLandscapeLeft","UIInterfaceOrientationLandscapeRight","UIInterfaceOrientationPortrait","UIInterfaceOrientationPortraitUpsideDown"]' "$PLIST"
+
+          # App Transport Security (Tauri WebView)
+          plutil -remove NSAppTransportSecurity "$PLIST" 2>/dev/null || true
+          plutil -insert NSAppTransportSecurity -json '{"NSAllowsArbitraryLoads":false,"NSAllowsArbitraryLoadsInWebContent":true}' "$PLIST"
+
+          echo "Info.plist patched"
+          cat "$PLIST"
+
+      - name: Verify generated files
+        run: |
+          echo "=== Generated iOS project structure ==="
+          find ${{ env.APP_DIR }}/src-tauri/gen/apple -type f | head -50
+
+      - name: Commit and push generated files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -f ${{ env.APP_DIR }}/src-tauri/gen/apple/
+          git status
+          git commit -m "feat: add iOS project files (tauri ios init + signing config)"
+          git push origin main

@@ -1,0 +1,296 @@
+name: iOS Build & Deploy
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*.*.*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: 'Upload to App Store (requires version tag or manual trigger)'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+# App lives in a subdirectory of the repo
+env:
+  APP_DIR: files/frontier-scaffold/frontier
+
+jobs:
+  build-ios:
+    name: Build iOS App
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20.x
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+
+      - name: Install Rust stable with iOS target
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-ios
+
+      - name: Cache Cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-registry-
+
+      - name: Cache Cargo git index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-git-
+
+      - name: Cache Cargo build target
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.APP_DIR }}/src-tauri/target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-build-target-
+
+      - name: Install npm dependencies
+        working-directory: ${{ env.APP_DIR }}
+        run: npm install
+
+      - name: Build frontend
+        working-directory: ${{ env.APP_DIR }}
+        run: npm run build
+
+      - name: Setup iOS code signing keychain
+        env:
+          APPLE_CERTIFICATE_PEM: ${{ secrets.APPLE_CERTIFICATE_PEM }}
+          APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          PROVISIONING_PROFILE_APP: ${{ secrets.PROVISIONING_PROFILE_APP }}
+        run: |
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -base64 12)
+          P12_PASSWORD="$APPLE_CERTIFICATE_PASSWORD"
+
+          echo "Creating temporary keychain..."
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+
+          echo "Building .p12 from certificate and private key..."
+          echo "$APPLE_CERTIFICATE_PEM" | base64 --decode > $RUNNER_TEMP/cert.pem
+          echo "$APPLE_PRIVATE_KEY" | base64 --decode > $RUNNER_TEMP/key.pem
+
+          openssl pkcs12 -export \
+            -out $RUNNER_TEMP/certificate.p12 \
+            -inkey $RUNNER_TEMP/key.pem \
+            -in $RUNNER_TEMP/cert.pem \
+            -passout pass:"$P12_PASSWORD"
+
+          echo "Importing Apple Distribution certificate..."
+          security import $RUNNER_TEMP/certificate.p12 \
+            -k "$KEYCHAIN_PATH" \
+            -P "$P12_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security
+
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          echo "Installing provisioning profile..."
+          echo "$PROVISIONING_PROFILE_APP" | base64 --decode > $RUNNER_TEMP/frontier.mobileprovision
+
+          PROFILE_UUID=$(security cms -D -i $RUNNER_TEMP/frontier.mobileprovision | grep -A1 UUID | grep string | sed 's/.*<string>\(.*\)<\/string>.*/\1/')
+
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          cp $RUNNER_TEMP/frontier.mobileprovision ~/Library/MobileDevice/Provisioning\ Profiles/$PROFILE_UUID.mobileprovision
+
+          echo "KEYCHAIN_PATH=$KEYCHAIN_PATH" >> $GITHUB_ENV
+          echo "KEYCHAIN_PASSWORD=$KEYCHAIN_PASSWORD" >> $GITHUB_ENV
+          echo "PROFILE_UUID=$PROFILE_UUID" >> $GITHUB_ENV
+
+          rm -f $RUNNER_TEMP/certificate.p12 $RUNNER_TEMP/cert.pem $RUNNER_TEMP/key.pem $RUNNER_TEMP/frontier.mobileprovision
+
+      - name: Create ExportOptions.plist
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > ${{ env.APP_DIR }}/src-tauri/gen/apple/ExportOptions.plist << PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store-connect</string>
+            <key>teamID</key>
+            <string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>com.perrymartin.frontier</key>
+              <string>Frontier App Store</string>
+            </dict>
+            <key>signingCertificate</key>
+            <string>Apple Distribution</string>
+          </dict>
+          </plist>
+          PLIST
+
+          cp ${{ env.APP_DIR }}/src-tauri/gen/apple/ExportOptions.plist $RUNNER_TEMP/ExportOptions.plist
+
+      - name: Build iOS app with Tauri
+        working-directory: ${{ env.APP_DIR }}
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_DEVELOPMENT_TEAM: ${{ secrets.APPLE_TEAM_ID }}
+          RUST_BACKTRACE: 1
+        run: |
+          echo "Building iOS app with Tauri..."
+          echo "Build number: ${{ github.run_number }}"
+          npx tauri ios build -- --configuration Release
+
+      - name: Export archive to .ipa
+        run: |
+          echo "Exporting .xcarchive to .ipa..."
+          ARCHIVE_PATH=$(find ${{ env.APP_DIR }} -name "*.xcarchive" -type d | head -1)
+
+          if [ -z "$ARCHIVE_PATH" ]; then
+            echo "Error: .xcarchive not found!"
+            find ${{ env.APP_DIR }}/src-tauri -name "*build*" -o -name "*release*" | head -20
+            exit 1
+          fi
+
+          echo "Found archive: $ARCHIVE_PATH"
+
+          xcodebuild -exportArchive \
+            -archivePath "$ARCHIVE_PATH" \
+            -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
+            -exportPath $RUNNER_TEMP/export
+
+      - name: Prepare build artifacts
+        run: |
+          mkdir -p build-artifacts
+
+          IPA_FILE=$(find $RUNNER_TEMP/export -name "*.ipa" -type f | head -1)
+
+          if [ -z "$IPA_FILE" ]; then
+            echo "Error: .ipa file not found after export!"
+            ls -la $RUNNER_TEMP/export/
+            exit 1
+          fi
+
+          cp "$IPA_FILE" build-artifacts/frontier.ipa
+          echo "IPA ready: $(ls -lh build-artifacts/frontier.ipa)"
+
+          cat > build-artifacts/build-info.json << EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "commit": "${{ github.sha }}",
+            "branch": "${{ github.ref_name }}",
+            "bundleId": "com.perrymartin.frontier",
+            "buildNumber": "${{ github.run_number }}"
+          }
+          EOF
+
+      - name: Upload .ipa as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontier-ios-${{ github.run_number }}
+          path: build-artifacts/
+          retention-days: 30
+
+      - name: Cleanup signing keychain
+        if: always()
+        run: |
+          if [ ! -z "$KEYCHAIN_PATH" ]; then
+            security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
+          fi
+
+  upload-to-app-store:
+    name: Upload to App Store Connect
+    runs-on: macos-15
+    needs: build-ios
+    if: |
+      (startsWith(github.ref, 'refs/tags/v') ||
+       (github.event_name == 'workflow_dispatch' && github.event.inputs.upload == 'true'))
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download .ipa artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: frontier-ios-${{ github.run_number }}
+          path: build-artifacts/
+
+      - name: Setup App Store Connect API key
+        env:
+          APP_STORE_CONNECT_API_KEY: ${{ secrets.APP_STORE_CONNECT_API_KEY }}
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+        run: |
+          mkdir -p ~/private_keys
+          echo "$APP_STORE_CONNECT_API_KEY" > ~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+          chmod 600 ~/private_keys/AuthKey_${APP_STORE_CONNECT_API_KEY_ID}.p8
+
+      - name: Upload to App Store Connect
+        env:
+          APP_STORE_CONNECT_API_KEY_ID: ${{ secrets.APP_STORE_CONNECT_API_KEY_ID }}
+          APP_STORE_CONNECT_API_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_API_ISSUER_ID }}
+        run: |
+          IPA_FILE="build-artifacts/frontier.ipa"
+
+          if [ ! -f "$IPA_FILE" ]; then
+            echo "Error: .ipa file not found at $IPA_FILE"
+            ls -la build-artifacts/
+            exit 1
+          fi
+
+          echo "Uploading .ipa to App Store Connect..."
+          xcrun altool --upload-app \
+            --file "$IPA_FILE" \
+            --type ios \
+            --apiKey "$APP_STORE_CONNECT_API_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_API_ISSUER_ID"
+
+      - name: Deployment summary
+        if: success()
+        run: |
+          echo "=========================================="
+          echo "iOS Deployment Successful"
+          echo "=========================================="
+          echo "App:       Frontier"
+          echo "Bundle ID: com.perrymartin.frontier"
+          echo "Version:   ${{ github.ref_name }}"
+          echo "Build #:   ${{ github.run_number }}"
+          echo "=========================================="
+
+# ============================================================================
+# REQUIRED GITHUB SECRETS
+# ============================================================================
+# Reuse from Burn Wizard where possible (cert + API key are shared).
+# Only PROVISIONING_PROFILE_APP needs a new profile for com.perrymartin.frontier.
+#
+# APPLE_CERTIFICATE_PEM        — Distribution cert PEM (base64), same as Burn Wizard
+# APPLE_PRIVATE_KEY             — Private key PEM (base64), same as Burn Wizard
+# APPLE_CERTIFICATE_PASSWORD    — .p12 password, same as Burn Wizard
+# PROVISIONING_PROFILE_APP      — NEW: iOS App Distribution profile for com.perrymartin.frontier (base64)
+# APPLE_TEAM_ID                 — NN8F5WX25R (same as Burn Wizard)
+# APP_STORE_CONNECT_API_KEY     — .p8 contents (same as Burn Wizard)
+# APP_STORE_CONNECT_API_KEY_ID  — Key ID (same as Burn Wizard)
+# APP_STORE_CONNECT_API_ISSUER_ID — Issuer UUID (same as Burn Wizard)
+# ============================================================================
