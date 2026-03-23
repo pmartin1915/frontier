@@ -124,11 +124,19 @@ jobs:
 
           rm -f $RUNNER_TEMP/certificate.p12 $RUNNER_TEMP/cert.pem $RUNNER_TEMP/key.pem $RUNNER_TEMP/frontier.mobileprovision
 
-      - name: Set build number in Info.plist
+      - name: Set unique build version in tauri.conf.json
         run: |
-          PLIST="${{ env.APP_DIR }}/src-tauri/gen/apple/frontier_iOS/Info.plist"
-          plutil -replace CFBundleVersion -string "${{ github.run_number }}" "$PLIST"
-          echo "CFBundleVersion set to ${{ github.run_number }}"
+          # Patch tauri.conf.json version to include build number for unique CFBundleVersion
+          cd ${{ env.APP_DIR }}
+          CURRENT=$(python3 -c "import json; print(json.load(open('src-tauri/tauri.conf.json'))['version'])")
+          NEW_VERSION="${CURRENT}.${{ github.run_number }}"
+          python3 -c "
+          import json
+          c = json.load(open('src-tauri/tauri.conf.json'))
+          c['version'] = '${NEW_VERSION}'
+          json.dump(c, open('src-tauri/tauri.conf.json', 'w'), indent=2)
+          "
+          echo "Version set to $NEW_VERSION"
 
       - name: Create ExportOptions.plist
         env:
