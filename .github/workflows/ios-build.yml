@@ -124,6 +124,12 @@ jobs:
 
           rm -f $RUNNER_TEMP/certificate.p12 $RUNNER_TEMP/cert.pem $RUNNER_TEMP/key.pem $RUNNER_TEMP/frontier.mobileprovision
 
+      - name: Set build number in Info.plist
+        run: |
+          PLIST="${{ env.APP_DIR }}/src-tauri/gen/apple/frontier_iOS/Info.plist"
+          plutil -replace CFBundleVersion -string "${{ github.run_number }}" "$PLIST"
+          echo "CFBundleVersion set to ${{ github.run_number }}"
+
       - name: Create ExportOptions.plist
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
